@@ -24,6 +24,3 @@ for temperatura in temperaturas:
         sala_maior_risco = sala
     sala += 1
 print("Sala com maior risco: Sala", sala_maior_risco)
-
-
-
