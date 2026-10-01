@@ -1,5 +1,0 @@
-#Exercício 9 
-Valor_recebido = float(input("Qual foi o valor recebido?: "))
-Valor_produto = float(input("Qual é o valor do produto?: "))
-Troco = float(Valor_recebido - Valor_produto)
-print(Seu troco é de {round(Troco,2)})
