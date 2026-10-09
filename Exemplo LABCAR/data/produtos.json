@@ -1,0 +1,162 @@
+[
+  {
+    "nome": "Parabarro",
+    "modelo": "Onix",
+    "lado": "Esquerdo",
+    "local": "Andar de cima - Sala dos parabarros",
+    "quantidade": 88,
+    "alerta": 10,
+    "criado": "2026-10-09",
+    "id": 1
+  },
+  {
+    "nome": "Parabarro",
+    "modelo": "Onix",
+    "lado": "Direito",
+    "local": "Andar de cima - Sala dos parabarros",
+    "quantidade": 10,
+    "alerta": 10,
+    "criado": "2026-10-09",
+    "id": 2
+  },
+  {
+    "nome": "Parabarro",
+    "modelo": "G5",
+    "lado": "Esquerdo",
+    "local": "Andar de cima - Sala dos parabarros",
+    "quantidade": 15,
+    "alerta": 10,
+    "criado": "2026-10-09",
+    "id": 3
+  },
+  {
+    "nome": "Parabarro",
+    "modelo": "G5",
+    "lado": "Direito",
+    "local": "Andar de cima - Sala dos parabarros",
+    "quantidade": 15,
+    "alerta": 10,
+    "criado": "2026-10-09",
+    "id": 4
+  },
+  {
+    "nome": "Parabarro",
+    "modelo": "Punto",
+    "lado": "Esquerdo",
+    "local": "Andar de cima - Sala dos parabarros",
+    "quantidade": 20,
+    "alerta": 10,
+    "criado": "2026-10-09",
+    "id": 5
+  },
+  {
+    "nome": "Parabarro",
+    "modelo": "Punto",
+    "lado": "Direito",
+    "local": "Andar de cima - Sala dos parabarros",
+    "quantidade": 2,
+    "alerta": 10,
+    "criado": "2026-10-09",
+    "id": 6
+  },
+  {
+    "nome": "Parabarro",
+    "modelo": "Palio",
+    "lado": "Esquerdo",
+    "local": "Andar de cima - Sala dos parabarros",
+    "quantidade": 25,
+    "alerta": 10,
+    "criado": "2026-10-09",
+    "id": 7
+  },
+  {
+    "nome": "Parabarro",
+    "modelo": "Palio",
+    "lado": "Direito",
+    "local": "Andar de cima - Sala dos parabarros",
+    "quantidade": 10,
+    "alerta": 10,
+    "criado": "2026-10-09",
+    "id": 8
+  },
+  {
+    "nome": "Parabarro",
+    "modelo": "Corsa 94",
+    "lado": "Esquerdo",
+    "local": "Andar de cima - Sala dos parabarros",
+    "quantidade": 20,
+    "alerta": 10,
+    "criado": "2026-10-09",
+    "id": 9
+  },
+  {
+    "nome": "Parabarro",
+    "modelo": "Corsa 94",
+    "lado": "Direito",
+    "local": "Andar de cima - Sala dos parabarros",
+    "quantidade": 20,
+    "alerta": 10,
+    "criado": "2026-10-09",
+    "id": 10
+  },
+  {
+    "nome": "Parabarro",
+    "modelo": "Corsa 02",
+    "lado": "Esquerdo",
+    "local": "Andar de cima - Sala dos parabarros",
+    "quantidade": 10,
+    "alerta": 10,
+    "criado": "2026-10-09",
+    "id": 11
+  },
+  {
+    "nome": "Parabarro",
+    "modelo": "Corsa 02",
+    "lado": "Direito",
+    "local": "Andar de cima - Sala dos parabarros",
+    "quantidade": 10,
+    "alerta": 10,
+    "criado": "2026-10-09",
+    "id": 12
+  },
+  {
+    "nome": "Moldura",
+    "modelo": "Uno Traseiro",
+    "lado": "Esquerdo",
+    "local": "Andar de cima - Sala dos parabarros",
+    "quantidade": 10,
+    "alerta": 10,
+    "criado": "2026-10-09",
+    "id": 13
+  },
+  {
+    "nome": "Moldura",
+    "modelo": "Uno Traseiro",
+    "lado": "Direito",
+    "local": "Andar de cima - Sala dos parabarros",
+    "quantidade": 10,
+    "alerta": 10,
+    "criado": "2026-10-09",
+    "id": 14
+  },
+  {
+    "nome": "Moldura",
+    "modelo": "Uno Dianteiro",
+    "lado": "Esquerdo",
+    "local": "Andar de cima - Sala dos parabarros",
+    "quantidade": 10,
+    "alerta": 10,
+    "criado": "2026-10-09",
+    "id": 15
+  },
+  {
+    "nome": "Moldura",
+    "modelo": "Uno Dianteiro",
+    "lado": "Direito",
+    "local": "Andar de cima - Sala dos parabarros",
+    "quantidade": 10,
+    "alerta": 10,
+    "criado": "2026-10-09",
+    "id": 16
+  }
+]

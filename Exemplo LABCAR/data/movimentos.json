@@ -1,0 +1,16 @@
+[
+  {
+    "produto_id": 1,
+    "tipo": "saida",
+    "quantidade": 12,
+    "plataforma": "Shopee",
+    "data": "2026-10-09"
+  },
+  {
+    "produto_id": 1,
+    "tipo": "entrada",
+    "quantidade": 85,
+    "plataforma": null,
+    "data": "2026-10-09"
+  }
+]
