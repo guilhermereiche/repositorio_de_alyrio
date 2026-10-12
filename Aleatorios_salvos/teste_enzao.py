@@ -19,3 +19,7 @@ if nome == "enzo guislandi":
     resposta = str(input("Faz parte da tríplice né?: ")).lower()
     if resposta in ("sim", "s"):
         print("lessgo ent")
+if nome == "gabriel moia":
+    print("Opa, é o fiote né?")
+else:
+    print("ent vc é random")
