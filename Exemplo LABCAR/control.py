@@ -1,30 +1,123 @@
 from pathlib import Path
-from datetime import date
+from datetime import date, datetime, timedelta
 import json
+import os
+import shutil
+import sys
+import traceback
 
 from model import PLATAFORMAS, model_movimento, nome_completo
 
-DATA_DIR = Path(__file__).resolve().parent / "data"
+# ---------- configurações ----------
+JANELA_DIAS = 30        # a média de saída considera no máximo os últimos 30 dias
+DIAS_DE_BACKUP = 30     # quantos dias de backup guardar
+
+
+def _pasta_base():
+    """Pasta onde ficam os dados. Funciona tanto rodando o .py
+    quanto depois de virar um .exe."""
+    if getattr(sys, "frozen", False):
+        return Path(sys.executable).resolve().parent
+    return Path(__file__).resolve().parent
+
+
+DATA_DIR = _pasta_base() / "data"
 DATA_DIR.mkdir(exist_ok=True)
+BACKUP_DIR = DATA_DIR / "backups"
 PRODUTOS_PATH = DATA_DIR / "produtos.json"
 MOVIMENTOS_PATH = DATA_DIR / "movimentos.json"
+ERROS_LOG = DATA_DIR / "erros.log"
 
 
-# ---------- funções auxiliares (ler/escrever JSON) ----------
+# ---------- funções auxiliares (ler/escrever JSON com segurança) ----------
+def _json_valido(path):
+    """True se o arquivo existe e é um JSON legível."""
+    if not path.exists():
+        return False
+    try:
+        json.loads(path.read_text(encoding="utf-8"))
+        return True
+    except (json.JSONDecodeError, OSError):
+        return False
+
+
+def _ultimo_backup(path):
+    """Procura o backup válido mais recente de um arquivo."""
+    if not BACKUP_DIR.exists():
+        return None
+    pastas = sorted((p for p in BACKUP_DIR.iterdir() if p.is_dir()), reverse=True)
+    for pasta in pastas:
+        candidato = pasta / path.name
+        if _json_valido(candidato):
+            return candidato
+    return None
+
+
+def _tratar_arquivo_corrompido(path):
+    """Guarda uma cópia do arquivo quebrado e tenta restaurar do backup."""
+    carimbo = datetime.now().strftime("%Y%m%d-%H%M%S")
+    copia = path.with_name(f"{path.stem}.corrompido-{carimbo}{path.suffix}")
+    shutil.copy2(path, copia)
+    print(f"\nATENÇÃO: o arquivo {path.name} estava corrompido.")
+    print(f"Uma cópia dele foi guardada como {copia.name}.")
+
+    backup = _ultimo_backup(path)
+    if backup is None:
+        print("Nenhum backup encontrado. Começando com a lista vazia.")
+        return []
+
+    print(f"Dados restaurados do backup de {backup.parent.name}.")
+    dados = json.loads(backup.read_text(encoding="utf-8"))
+    _write_json(path, dados)
+    return dados
+
+
 def _read_json(path):
     if not path.exists():
         return []
     try:
         return json.loads(path.read_text(encoding="utf-8"))
     except json.JSONDecodeError:
-        return []
+        return _tratar_arquivo_corrompido(path)
 
 
 def _write_json(path, data):
-    path.write_text(
+    """Grava num arquivo temporário e só depois troca pelo definitivo.
+    Assim, se o programa travar no meio, o arquivo original não quebra."""
+    temporario = path.with_suffix(".tmp")
+    temporario.write_text(
         json.dumps(data, ensure_ascii=False, indent=2),
         encoding="utf-8"
     )
+    os.replace(temporario, path)
+
+
+# ---------- BACKUP E LOG ----------
+def fazer_backup():
+    """Copia os dados para data/backups/AAAA-MM-DD (uma vez por dia)
+    e apaga backups mais antigos que DIAS_DE_BACKUP."""
+    pasta = BACKUP_DIR / date.today().isoformat()
+    if pasta.exists():
+        return
+
+    arquivos = [a for a in (PRODUTOS_PATH, MOVIMENTOS_PATH) if _json_valido(a)]
+    if not arquivos:
+        return
+
+    pasta.mkdir(parents=True)
+    for arquivo in arquivos:
+        shutil.copy2(arquivo, pasta / arquivo.name)
+
+    pastas = sorted(p for p in BACKUP_DIR.iterdir() if p.is_dir())
+    for antiga in pastas[:-DIAS_DE_BACKUP]:
+        shutil.rmtree(antiga, ignore_errors=True)
+
+
+def registrar_erro():
+    """Salva o erro inesperado em data/erros.log (chamar dentro de um except)."""
+    with open(ERROS_LOG, "a", encoding="utf-8") as arquivo:
+        arquivo.write(f"--- {datetime.now():%Y-%m-%d %H:%M:%S} ---\n")
+        arquivo.write(traceback.format_exc() + "\n")
 
 
 # ---------- PRODUTOS (CRUD) ----------
@@ -119,8 +212,8 @@ def registrar_saida(produto_id, quantidade, plataforma):
     if quantidade > produto["quantidade"]:
         return False, f"Estoque insuficiente (só tem {produto['quantidade']})."
 
-    update_produto(produto_id, quantidade=produto["quantidade"] - quantidade)
     _add_movimento(model_movimento(produto_id, "saida", quantidade, plataforma))
+    update_produto(produto_id, quantidade=produto["quantidade"] - quantidade)
     return True, "Saída registrada!"
 
 
@@ -130,29 +223,70 @@ def registrar_entrada(produto_id, quantidade):
     if produto is None:
         return False, "Produto não encontrado."
 
-    update_produto(produto_id, quantidade=produto["quantidade"] + quantidade)
     _add_movimento(model_movimento(produto_id, "entrada", quantidade))
+    update_produto(produto_id, quantidade=produto["quantidade"] + quantidade)
     return True, "Entrada registrada!"
+
+
+def desfazer_ultimo_movimento(produto_id):
+    """Apaga o último lançamento do produto e devolve o estoque ao que era.
+    Útil quando alguém digitou a quantidade ou a plataforma errada."""
+    produto = get_produto(produto_id)
+    if produto is None:
+        return False, "Produto não encontrado."
+
+    movimentos = read_movimentos()
+    posicoes = [i for i, m in enumerate(movimentos) if m["produto_id"] == produto_id]
+    if not posicoes:
+        return False, "Esse produto ainda não tem lançamentos."
+
+    ultimo = movimentos[posicoes[-1]]
+    if ultimo["tipo"] == "saida":
+        nova_quantidade = produto["quantidade"] + ultimo["quantidade"]
+    else:
+        nova_quantidade = produto["quantidade"] - ultimo["quantidade"]
+        if nova_quantidade < 0:
+            return False, "Não dá pra desfazer: o estoque ficaria negativo."
+
+    movimentos.pop(posicoes[-1])
+    _write_json(MOVIMENTOS_PATH, movimentos)
+    update_produto(produto_id, quantidade=nova_quantidade)
+    return True, "Último lançamento desfeito."
 
 
 # ---------- CÁLCULOS ----------
 def media_diaria(produto_id):
     """Média de unidades vendidas por dia, por plataforma e no geral.
-    O período vai do dia da primeira saída registrada até hoje."""
-    medias = {plataforma: 0.0 for plataforma in PLATAFORMAS}
-    medias["Geral"] = 0.0
+
+    Período considerado: da primeira venda do produto até hoje,
+    mas olhando no máximo os últimos JANELA_DIAS dias.
+    Dias sem venda contam como dias com zero venda.
+
+    Devolve (medias, dias): medias é um dicionário e dias é o tamanho do
+    período usado (0 se o produto nunca vendeu)."""
+    hoje = date.today()
 
     saidas = [m for m in movimentos_do_produto(produto_id) if m["tipo"] == "saida"]
+    medias = {plataforma: 0.0 for plataforma in PLATAFORMAS}
     if not saidas:
-        return medias
+        medias["Geral"] = 0.0
+        return medias, 0
 
-    primeira = min(date.fromisoformat(m["data"]) for m in saidas)
-    dias = (date.today() - primeira).days + 1
+    primeira_venda = min(date.fromisoformat(m["data"]) for m in saidas)
+    inicio_janela = hoje - timedelta(days=JANELA_DIAS - 1)
+    inicio = max(primeira_venda, inicio_janela)
+    dias = max(1, (hoje - inicio).days + 1)
 
+    total = 0
     for m in saidas:
-        medias[m["plataforma"]] += m["quantidade"]
-        medias["Geral"] += m["quantidade"]
+        if date.fromisoformat(m["data"]) < inicio:
+            continue  # venda antiga, fora da janela
+        # .get evita erro se o nome da plataforma mudou ou não existe mais na lista
+        plataforma = m.get("plataforma") or "Outra"
+        medias[plataforma] = medias.get(plataforma, 0.0) + m["quantidade"]
+        total += m["quantidade"]
 
-    for chave in medias:
-        medias[chave] /= dias
-    return medias
+    for plataforma in medias:
+        medias[plataforma] /= dias
+    medias["Geral"] = total / dias
+    return medias, dias

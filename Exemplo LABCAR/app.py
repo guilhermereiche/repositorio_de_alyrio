@@ -1,6 +1,9 @@
 from model import model_produto, nome_completo, LOCAIS, LADOS, PLATAFORMAS
 import control
 
+# Quantidades a partir deste valor pedem confirmação (evita digitar 500 em vez de 5)
+LIMITE_CONFIRMACAO = 100
+
 
 # ---------- funções de entrada (validam o que o usuário digita) ----------
 def ler_int(mensagem, minimo=0):
@@ -17,10 +20,21 @@ def ler_int(mensagem, minimo=0):
         return valor
 
 
-def ler_texto(mensagem):
-    """Pede um texto que não pode ficar vazio."""
+def ler_quantidade(mensagem, minimo=0):
+    """Igual ao ler_int, mas pede confirmação se o número for muito grande."""
     while True:
-        texto = input(mensagem).strip()
+        quantidade = ler_int(mensagem, minimo)
+        if quantidade < LIMITE_CONFIRMACAO:
+            return quantidade
+        resposta = input(f"Você digitou {quantidade} unidades. Está certo? (s/n): ")
+        if resposta.strip().lower() == "s":
+            return quantidade
+
+
+def ler_texto(mensagem):
+    """Pede um texto que não pode ficar vazio e arruma espaços repetidos."""
+    while True:
+        texto = " ".join(input(mensagem).split())
         if texto:
             return texto
         print("Não pode ficar vazio.")
@@ -47,7 +61,7 @@ def mostrar_tabela(produtos):
 
 def escolher_produto():
     """Busca por nome, mostra os resultados e pede o ID. Devolve o produto (ou None)."""
-    termo = input("Buscar produto (Enter = todos): ")
+    termo = input("Buscar produto (ex: parabarro onix, Enter = todos): ")
     produtos = control.search_produtos(termo)
     if not produtos:
         print("Nenhum produto encontrado.")
@@ -66,8 +80,8 @@ def escolher_produto():
 
 # ---------- ações do menu ----------
 def add_produto():
-    nome = ler_texto("Nome da peça: ")
-    modelo = ler_texto("Modelo do carro: ")
+    nome = ler_texto("Nome da peça (ex: Parabarro): ")
+    modelo = ler_texto("Modelo do carro (ex: Onix, G5): ")
     lado = escolher_da_lista("Lado:", LADOS)
 
     # não deixa cadastrar a mesma variação duas vezes
@@ -78,8 +92,8 @@ def add_produto():
         return
 
     local = escolher_da_lista("Local de armazenamento:", LOCAIS)
-    quantidade = ler_int("Quantidade em estoque: ")
-    alerta = ler_int("Quantidade de alerta (hora de comprar): ")
+    quantidade = ler_quantidade("Quantidade em estoque: ")
+    alerta = ler_quantidade("Quantidade de alerta (hora de comprar): ")
 
     produto = model_produto(nome, modelo, lado, local, quantidade, alerta)
     novo_id = control.create_produto(produto)
@@ -99,21 +113,26 @@ def ver_detalhes():
     if produto is None:
         return
 
-    medias = control.media_diaria(produto["id"])
+    medias, dias = control.media_diaria(produto["id"])
     print(f"\n=== {nome_completo(produto)} ===")
     print(f"Peça: {produto['nome']} | Modelo: {produto['modelo']} | Lado: {produto['lado']}")
     print(f"Local: {produto['local']}")
     print(f"Quantidade: {produto['quantidade']} (alerta em {produto['alerta']})")
 
-    print("\nMédia de saída por dia:")
+    if dias == 0:
+        print("\nAinda não há saídas registradas.")
+        return
+
+    print(f"\nMédia de saída por dia (período considerado: {dias} dia(s), máximo {control.JANELA_DIAS}):")
     for chave, valor in medias.items():
         print(f"  {chave:<14}: {valor:.2f}")
 
+    if dias < 7:
+        print("Obs: há poucos dias de histórico, então a média ainda pode variar bastante.")
+
     if medias["Geral"] > 0:
-        dias = produto["quantidade"] / medias["Geral"]
-        print(f"\nNo ritmo atual, o estoque dura ~{dias:.0f} dias.")
-    else:
-        print("\nAinda não há saídas registradas.")
+        previsao = produto["quantidade"] / medias["Geral"]
+        print(f"\nNo ritmo atual, o estoque dura ~{previsao:.0f} dias.")
 
 
 def dar_saida():
@@ -121,8 +140,13 @@ def dar_saida():
     if produto is None:
         return
 
+    print(f"\n{nome_completo(produto)} | estoque atual: {produto['quantidade']}")
+    if produto["quantidade"] == 0:
+        print("Esse produto está sem estoque.")
+        return
+
     plataforma = escolher_da_lista("Plataforma da venda:", PLATAFORMAS)
-    quantidade = ler_int("Quantidade vendida: ", 1)
+    quantidade = ler_quantidade("Quantidade vendida: ", 1)
 
     ok, msg = control.registrar_saida(produto["id"], quantidade, plataforma)
     print(msg)
@@ -139,8 +163,34 @@ def dar_entrada():
     if produto is None:
         return
 
-    quantidade = ler_int("Quantidade que chegou: ", 1)
+    print(f"\n{nome_completo(produto)} | estoque atual: {produto['quantidade']}")
+    quantidade = ler_quantidade("Quantidade que chegou: ", 1)
     ok, msg = control.registrar_entrada(produto["id"], quantidade)
+    print(msg)
+
+
+def desfazer_lancamento():
+    produto = escolher_produto()
+    if produto is None:
+        return
+
+    movimentos = control.movimentos_do_produto(produto["id"])
+    if not movimentos:
+        print("Esse produto ainda não tem lançamentos.")
+        return
+
+    ultimo = movimentos[-1]
+    if ultimo["tipo"] == "saida":
+        descricao = f"SAÍDA de {ultimo['quantidade']} un. ({ultimo['plataforma']}) em {ultimo['data']}"
+    else:
+        descricao = f"ENTRADA de {ultimo['quantidade']} un. em {ultimo['data']}"
+
+    print(f"\nÚltimo lançamento de '{nome_completo(produto)}': {descricao}")
+    if input("Desfazer esse lançamento? (s/n): ").strip().lower() != "s":
+        print("Cancelado.")
+        return
+
+    ok, msg = control.desfazer_ultimo_movimento(produto["id"])
     print(msg)
 
 
@@ -173,9 +223,9 @@ def editar_produto():
     elif campo == "Local":
         control.update_produto(produto["id"], local=escolher_da_lista("Novo local:", LOCAIS))
     elif campo == "Quantidade de alerta":
-        control.update_produto(produto["id"], alerta=ler_int("Novo alerta: "))
+        control.update_produto(produto["id"], alerta=ler_quantidade("Novo alerta: "))
     else:
-        control.update_produto(produto["id"], quantidade=ler_int("Quantidade correta: "))
+        control.update_produto(produto["id"], quantidade=ler_quantidade("Quantidade correta: "))
     print("Produto atualizado!")
 
 
@@ -184,7 +234,7 @@ def excluir_produto():
     if produto is None:
         return
 
-    confirmar = input(f"Excluir '{nome_completo(produto)}' e todo o histórico dele? (s/n): ").lower()
+    confirmar = input(f"Excluir '{nome_completo(produto)}' e todo o histórico dele? (s/n): ").strip().lower()
     if confirmar == "s":
         control.delete_produto(produto["id"])
         print("Produto excluído.")
@@ -199,6 +249,13 @@ def ver_alertas():
         return
     print("\nProdutos para comprar:")
     mostrar_tabela(produtos)
+
+
+def avisar_alertas():
+    """Mostra um aviso rápido assim que o programa abre."""
+    precisam = [p for p in control.read_produtos() if p["quantidade"] <= p["alerta"]]
+    if precisam:
+        print(f"\nATENÇÃO: {len(precisam)} produto(s) no nível de alerta. Use a opção [8] para ver.")
 
 
 def ver_historico():
@@ -220,46 +277,60 @@ def ver_historico():
 
 
 # ---------- menu principal ----------
+ACOES = {
+    "1": add_produto,
+    "2": list_produtos,
+    "3": ver_detalhes,
+    "4": dar_saida,
+    "5": dar_entrada,
+    "6": editar_produto,
+    "7": excluir_produto,
+    "8": ver_alertas,
+    "9": ver_historico,
+    "10": desfazer_lancamento,
+}
+
+
 def main():
+    control.fazer_backup()
+    avisar_alertas()
+
     while True:
         print("\n===== Controle de Estoque =====")
-        print("[1] Cadastrar produto")
-        print("[2] Listar produtos")
-        print("[3] Ver detalhes / média de saída")
-        print("[4] Registrar saída (venda)")
-        print("[5] Registrar entrada (reposição)")
-        print("[6] Editar produto")
-        print("[7] Excluir produto")
-        print("[8] Ver alertas de compra")
-        print("[9] Ver histórico de um produto")
-        print("[0] Sair do programa")
+        print("[1]  Cadastrar produto")
+        print("[2]  Listar produtos")
+        print("[3]  Ver detalhes / média de saída")
+        print("[4]  Registrar saída (venda)")
+        print("[5]  Registrar entrada (reposição)")
+        print("[6]  Editar produto")
+        print("[7]  Excluir produto")
+        print("[8]  Ver alertas de compra")
+        print("[9]  Ver histórico de um produto")
+        print("[10] Desfazer último lançamento de um produto")
+        print("[0]  Sair do programa")
 
         opt = input("Escolha uma opção: ").strip()
 
-        if opt == "1":
-            add_produto()
-        elif opt == "2":
-            list_produtos()
-        elif opt == "3":
-            ver_detalhes()
-        elif opt == "4":
-            dar_saida()
-        elif opt == "5":
-            dar_entrada()
-        elif opt == "6":
-            editar_produto()
-        elif opt == "7":
-            excluir_produto()
-        elif opt == "8":
-            ver_alertas()
-        elif opt == "9":
-            ver_historico()
-        elif opt == "0":
+        if opt == "0":
             print("Até mais...")
             break
-        else:
+
+        acao = ACOES.get(opt)
+        if acao is None:
             print("Opção inválida.")
+            continue
+
+        try:
+            acao()
+        except (KeyboardInterrupt, EOFError):
+            print("\nOperação cancelada.")
+        except Exception:
+            control.registrar_erro()
+            print("Ocorreu um erro inesperado. Os detalhes foram salvos em data/erros.log.")
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except (KeyboardInterrupt, EOFError):
+        print("\nPrograma encerrado.")

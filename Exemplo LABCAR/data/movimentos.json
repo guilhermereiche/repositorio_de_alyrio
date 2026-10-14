@@ -12,5 +12,12 @@
     "quantidade": 85,
     "plataforma": null,
     "data": "2026-10-09"
+  },
+  {
+    "produto_id": 1,
+    "tipo": "saida",
+    "quantidade": 13,
+    "plataforma": "Shopee",
+    "data": "2026-10-13"
   }
 ]
